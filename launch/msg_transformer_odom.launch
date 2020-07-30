@@ -1,0 +1,9 @@
+<launch>
+    <node name="msg_transformer_odom" pkg="msg_transformer" type="msg_transformer_odom" output="screen" />
+        <param name="subscriber_topic" value="/summit_xl/odom"/>
+        <param name="pub_queue_size" value="0" type="int"/>
+        <param name="sub_queue_size" value="0" type="int"/>
+        <rosparam param="pose_cov">[1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6]</rosparam>
+        <rosparam param="twist_cov">[0.0064,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]</rosparam>
+        <!--rosparam param="twist_cov">[(0.02*4)^2,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,1e-6,0,0,0,0,0,0,(1)^2]</rosparam-->
+</launch>
