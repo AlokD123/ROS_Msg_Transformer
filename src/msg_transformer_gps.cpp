@@ -8,72 +8,86 @@
 //#define DEBUG_
 
 class MsgTransformer {
+/**
+ * @brief This class transforms the fields of messages in ROS "on-the-fly" (i.e. by overwritting with custom values and republishing).
+ * @note For a brief explanation of ROS and distributed messaging, refer to: http://wiki.ros.org/ROS/Tutorials/UnderstandingNodes
+ * @todo Generalize this class to be for all types of messages, not just GPS messages (this application)
+*/
+
   private:
-    ros::NodeHandle nh_;
-    ros::Publisher pub_;
-    ros::Subscriber sub_;
+    ros::NodeHandle nh_; //Handle for node in application, with which ROS master communicates
+    ros::Publisher pub_;  //Publisher of transformed messages
+    ros::Subscriber sub_; //Subscriber to raw messages
 
-    std::string subTopic_, pubTopic_; // TO DO: update to arbitary message type
-                                      // and arbitrary fields for alteration
-    uint32_t pubQueueSize_, subQueueSize_;
-    std::vector<double> positionCovariance_; // TO DO: update to arbitrary fields
+    std::string subTopic_, pubTopic_;         // Topics for raw messages (subscibed) and transformed messages
+    uint32_t pubQueueSize_, subQueueSize_;    // Queue sizes for the publish and subscribe processes
+    std::vector<double> positionCovariance_;  // New value for field in GPS message ("uncertainty in position"), populated during construction
 
-    // One possible callback for the subscriber in the class. Publishes to
-    // ALTERNATE topic with transformed msg
+    /**
+     * @brief One possible callback for the subscriber in the class. Publishes to a renamed ALTERNATE topic with the transformed msg
+     * @param gps_msg: raw message to be read, and a transformed message returned as a copy (see alterMsg())
+    */
     void subscribeAndPublish(const sensor_msgs::NavSatFix &gps_msg);
 
-    // Another possible callback for the subscriber in the class. Just changes msg
-    // by reference void subscribe(sensor_msgs::NavSatFix&); //TO DO: update to
-    // arbitary message type
+    /**
+     * @brief Another possible callback for the subscriber in the class. Changes msg directly, by reference
+     * @param gps_msg: raw message to be transformed "in-place"
+    */
+    void subscribe(sensor_msgs::NavSatFix& gps_msg);
 
-    // Transform the msg, return a copy with updated fields
-    sensor_msgs::NavSatFix alterMsg(const sensor_msgs::NavSatFix &);
+
+    /**
+     * @brief Transform the msg, return a copy with updated fields
+     * @param msg: raw message to be transformed
+     * @return the transformed GPS message
+    */
+    sensor_msgs::NavSatFix alterMsg(const sensor_msgs::NavSatFix & msg);
 
   public:
+    /**
+     * @brief Construct a message transformer. Most params described above, except...
+     * @param positionCovariance: new value of position covariance to be set
+     * @param new_topic_suffix: a suffix for the new topic name, to distinguish from old one
+     * @return the transformed GPS message
+    */
     MsgTransformer(ros::NodeHandle nh, std::string subTopic,
                   uint32_t pubQueueSize, uint32_t subQueueSize,
-                  std::vector<double> positionCovariance);
+                  std::vector<double> positionCovariance,
+                  std::string new_topic_suffix);
 
-    // Change publish options
-    void setPublishOptions(std::string topic); // TO DO: update to arbitrary
-                                              // message type (another argument)
-    // Change subscribe options
-    void
-    setSubscribeOptions(std::string topic); // TO DO: update to arbitrary message
-                                            // type (another argument)
+    /**
+     * @brief expose publisher parameters to change. Currently limited to...
+     * @param topic: name of transformed message topic
+    */
+    void setPublishOptions(std::string topic); 
+    /**
+     * @brief expose subscriber parameters to change. Currently limited to...
+     * @param topic: name of raw message topic
+    */
+    void setSubscribeOptions(std::string topic); 
 };
 
 MsgTransformer::MsgTransformer(ros::NodeHandle nh, std::string subTopic,
                                uint32_t pubQueueSize, uint32_t subQueueSize,
-                               std::vector<double> positionCovariance)
+                               std::vector<double> positionCovariance,
+                               std::string new_topic_suffix="_alt")
     : nh_(nh), subTopic_(subTopic), pubQueueSize_(pubQueueSize),
       subQueueSize_(subQueueSize), positionCovariance_(positionCovariance) {
-  pub_ = nh.advertise<sensor_msgs::NavSatFix>((subTopic + "_alt").c_str(), //Publish to another topic with suffix "_alt"
-                                          pubQueueSize);
+  pub_ = nh.advertise<sensor_msgs::NavSatFix>((subTopic + new_topic_suffix).c_str(), //Publish to another topic, renamed using additional suffix
+                                              pubQueueSize);
   sub_ = nh.subscribe(subTopic.c_str(), subQueueSize,
                       &MsgTransformer::subscribeAndPublish, this);
 
   #ifdef DEBUG_
-    ROS_INFO("Constructed");
+    ROS_INFO("Constructed MsgTransformer");
   #endif
 };
 
-void MsgTransformer::setPublishOptions(std::string pubTopic) {
-  // MsgTransformer::pub_.topic_ = pubTopic.c_str(); // TO DO: not currently
-  // present
-}
-void MsgTransformer::setSubscribeOptions(std::string subTopic) {
-  // MsgTransformer::sub_.topic_ = subTopic.c_str(); // TO DO: not currently
-  // present
-}
-
 sensor_msgs::NavSatFix
 MsgTransformer::alterMsg(const sensor_msgs::NavSatFix &gps_msg) {
-  // TO DO: generalize alterations to message
-  // Currently, copy to new msg and overwrite covariance fields
-  sensor_msgs::NavSatFix altOdomMsg =
-      gps_msg; // Note: for pointer* instead of reference&, would need to
-                // explicitly dereference
+  // Alters message
+  // Currently, copies to new msg and overwrites covariance field
+  sensor_msgs::NavSatFix altOdomMsg = gps_msg;
 
   #ifdef DEBUG_
     int i = 0;
@@ -90,7 +104,7 @@ MsgTransformer::alterMsg(const sensor_msgs::NavSatFix &gps_msg) {
     assert(sizeof(altOdomMsg.position_covariance) == 9 * sizeof(double));
   #endif
 
-    memcpy(&(altOdomMsg.position_covariance), position_cov,
+    memcpy(&(altOdomMsg.position_covariance), position_cov, //Perform overwriting
           sizeof(altOdomMsg.position_covariance));
 
   #ifdef DEBUG_
@@ -101,7 +115,9 @@ MsgTransformer::alterMsg(const sensor_msgs::NavSatFix &gps_msg) {
     return altOdomMsg;
   }
 
+
   void MsgTransformer::subscribeAndPublish(const sensor_msgs::NavSatFix &gps_msg) {
+
     sensor_msgs::NavSatFix newMsg = alterMsg(gps_msg); // Alter the message
 
   #ifdef DEBUG_
@@ -109,8 +125,13 @@ MsgTransformer::alterMsg(const sensor_msgs::NavSatFix &gps_msg) {
     ROS_INFO("Before pub position cov[%d]=%f", j + 1, newMsg.position_covariance[j]);
   #endif
 
-    pub_.publish(newMsg);
+    pub_.publish(newMsg); //Publish new message
 }
+
+/**
+ * @brief example driver for the MessageTransformer class
+ * @param topic: name of transformed message topic
+*/
 
 int main(int argc, char **argv) {
   // Initiate node and set handle
@@ -122,7 +143,7 @@ int main(int argc, char **argv) {
   // Create MsgTransformer object
   std::string subTopic;
   int pubQueueSize, subQueueSize;
-  std::vector<double> positionCovariance;
+  std::vector<double> positionCovariance;     //Currently set in launch file using ROS parameter server
   nh.getParam("subscriber_topic", subTopic);
   #ifdef DEBUG_
     ROS_INFO("Got subscribe topic %s", subTopic.c_str());
@@ -137,12 +158,11 @@ int main(int argc, char **argv) {
     ROS_INFO("Got positionCovariance[0]= %f", positionCovariance.front());
   #endif
 
-  MsgTransformer mt = MsgTransformer(nh, subTopic, pubQueueSize, subQueueSize,
-                                     positionCovariance);
+  MsgTransformer mt = MsgTransformer(nh, subTopic, pubQueueSize, subQueueSize, positionCovariance);
   ROS_INFO("Created msg_transformer object");
 
   // Start subscribing and publishing to alternate
-  while (ros::ok()) { // Alternate: ros::Rate(_), rate.sleep();
-    ros::spinOnce();
-  } // The above is equivalent to ros::spin();
+  while (ros::ok()) { 
+    ros::spinOnce(); //Sleep process, and just reawaken for the callback events
+  } 
 }

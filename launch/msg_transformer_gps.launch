@@ -1,8 +1,11 @@
+<!-- An ROS "launch" file, which is an XML file containing parameters -->
+
 <launch>
     <node name="msg_transformer_gps" pkg="msg_transformer" type="msg_transformer_gps" output="screen" />
         <param name="subscriber_topic" value="/gps/fix"/>
         <param name="pub_queue_size" value="0" type="int"/>
         <param name="sub_queue_size" value="0" type="int"/>
+        <!-- The following field contains variances for gaussian noise in GPS latitude and longitude: (4*0.68626 [m])^2 , (4*2.8[m])^2-->
+        <!-- Obtained empirically through testing. Should be modified -->
         <rosparam param="position_cov">[7.535,0.0,0.0,  0.0,125.44,0.0, 0.0,0.0,0.0]</rosparam>
-        <!--<gaussianNoise>(4*0.68626)^2 (4*2.8)^2 0</gaussianNoise>-->
 </launch>
